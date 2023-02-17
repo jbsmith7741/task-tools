@@ -3,6 +3,7 @@ package local
 import (
 	"crypto/md5"
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"path"
@@ -36,7 +37,7 @@ func Stat(pth string) (stat.Stats, error) {
 	}
 	// md5 the file
 	var checksum string
-	if b, err := ioutil.ReadFile(pth); err == nil {
+	if b, err := os.ReadFile(pth); err == nil {
 		checksum = fmt.Sprintf("%x", md5.Sum(b))
 	}
 	return stat.Stats{
@@ -58,7 +59,7 @@ func ListFiles(pth string) ([]stat.Stats, error) {
 	pth = rmLocalPrefix(pth)
 
 	pth, _ = filepath.Abs(pth)
-	filesInfo, err := ioutil.ReadDir(pth)
+	filesInfo, err := ioutil.ReadDir(pth) // replace with os.ReadDir
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +74,7 @@ func ListFiles(pth string) ([]stat.Stats, error) {
 
 		// md5 the file
 		if !sts.IsDir {
-			if b, err := ioutil.ReadFile(sts.Path); err == nil {
+			if b, err := os.ReadFile(sts.Path); err == nil {
 				sts.Checksum = fmt.Sprintf("%x", md5.Sum(b))
 			}
 		}
@@ -81,4 +82,15 @@ func ListFiles(pth string) ([]stat.Stats, error) {
 	}
 
 	return allSts, nil
+}
+
+func NewFS(root string) (fs.FS, error) {
+	sts, err := Stat(root)
+	if err != nil {
+		return nil, fmt.Errorf("FS init error with '%s': %w", root, err)
+	}
+	if !sts.IsDir {
+		return nil, fmt.Errorf("'%s' is not a directory", root)
+	}
+	return os.DirFS(root), nil
 }

@@ -121,3 +121,16 @@ func Stat(pth string, Opt Option) (stat.Stats, error) {
 		IsDir:    false,
 	}, err
 }
+
+func Remove(pth string, opt Option) (stat.Stats, error) {
+	client, err := newClient(opt)
+	if err != nil {
+		return stat.Stats{}, errors.Wrap(err, "client init")
+	}
+	_, bucket, objPth := parsePth(pth)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+	defer cancel()
+	err = client.RemoveObject(ctx, bucket, objPth, minio.RemoveObjectOptions{})
+	return stat.Stats{}, err
+}

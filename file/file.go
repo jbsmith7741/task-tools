@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"context"
 	"io"
+	"io/fs"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -19,7 +20,7 @@ import (
 // Reader is an io.ReadCloser that also provides
 // file statistics along with a few additional methods.
 type Reader interface {
-	// Read should behave as defined in the io.Read interface.
+	// ReadCloser should behave as defined in the io.Read interface.
 	// In this way we can take advantage of all standard library
 	// methods that rely on Read such as copy.
 	//
@@ -43,7 +44,7 @@ type Reader interface {
 // Writer is a io.WriteCloser that also provides
 // file statistics along with a few additional methods.
 type Writer interface {
-	// Write should behave as defined in io.Writer so that it
+	// WriteCloser should behave as defined in io.Writer so that it
 	// is compatible with standard library tooling such as
 	// io.Copy. Additionally concurrent calls to Write should
 	// be safe and not corrupt the output. Order may
@@ -73,7 +74,6 @@ type Writer interface {
 	Abort() error
 }
 
-// NewOptions
 func NewOptions() *Options {
 	return &Options{
 		CompressionLevel: "speed",
@@ -211,6 +211,72 @@ func NewWriter(pth string, opt *Options) (w Writer, err error) {
 	}
 
 	return w, err
+}
+
+func NewFS(root string, opt *Options) (fs.FS, error) {
+	if opt == nil {
+		opt = NewOptions()
+	}
+
+	u, _ := url.Parse(root)
+
+	//bufOpts := bufOptions(*opt)
+	mOpt := minio.Option{AccessKey: opt.AccessKey, SecretKey: opt.SecretKey, Secure: true}
+	switch u.Scheme {
+	case "s3":
+		mOpt.Host = minio.S3Host
+		return nil, nil
+	case "gcs", "gs":
+		mOpt.Host = minio.GSHost
+		return nil, nil
+	case "mc", "minio":
+		mOpt.Host = u.Host
+		mOpt.Secure = false
+		return nil, nil
+	case "mcs":
+		mOpt.Host = u.Host
+		mOpt.Secure = true
+		return nil, nil
+	case "nop":
+		return nop.NewFS(root)
+	case "local":
+		fallthrough
+	default:
+		return local.NewFS(root)
+	}
+
+}
+
+// Remove a files specified in the path.
+func Remove(pth string, opt *Options) (stat.Stats, error) {
+	if opt == nil {
+		opt = NewOptions()
+	}
+
+	u, err := url.Parse(pth)
+	if err != nil {
+		return stat.Stats{}, err
+	}
+	// bufOpts := bufOptions(*opt)
+	mOpt := minio.Option{AccessKey: opt.AccessKey, SecretKey: opt.SecretKey, Secure: true}
+	switch u.Scheme {
+	case "s3":
+		mOpt.Host = minio.S3Host
+	case "gcs", "gs":
+		mOpt.Host = minio.GSHost
+	case "mc", "minio":
+		mOpt.Host = u.Host
+		mOpt.Secure = false
+	case "mcs":
+		mOpt.Host = u.Host
+		mOpt.Secure = true
+	case "nop":
+	case "local":
+		fallthrough
+	default:
+	}
+
+	return stat.Stats{}, nil
 }
 
 // List is a generic List function that will call the
